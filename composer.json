@@ -1,7 +1,6 @@
 {
     "name": "emailverify-ai/php-sdk",
     "description": "Official EmailVerify PHP SDK for email verification",
-    "version": "1.0.0",
     "type": "library",
     "license": "MIT",
     "authors": [
