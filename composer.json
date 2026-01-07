@@ -7,7 +7,7 @@
     "authors": [
         {
             "name": "EmailVerify",
-            "email": "support@emailverify.com"
+            "email": "support@emailverify.ai"
         }
     ],
     "keywords": [
@@ -17,7 +17,7 @@
         "emailverify",
         "email-verification"
     ],
-    "homepage": "https://emailverify.com",
+    "homepage": "https://emailverify.ai",
     "support": {
         "source": "https://github.com/emailverify-ai/php-sdk"
     },
