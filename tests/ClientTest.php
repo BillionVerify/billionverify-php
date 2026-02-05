@@ -106,7 +106,7 @@ class ClientTest extends TestCase
             new Response(200, [], json_encode($responseData)),
         ]);
 
-        $result = $client->verify('test@example.com', false, 5000);
+        $result = $client->verify('test@example.com', false);
 
         $this->assertIsArray($result);
     }
@@ -144,7 +144,7 @@ class ClientTest extends TestCase
     public function testVerifyInsufficientCredits(): void
     {
         $client = $this->createClientWithMockHandler([
-            new Response(403, [], json_encode([
+            new Response(402, [], json_encode([
                 'error' => [
                     'code' => 'INSUFFICIENT_CREDITS',
                     'message' => 'Not enough credits',
@@ -171,55 +171,57 @@ class ClientTest extends TestCase
         $client->verify('test@example.com');
     }
 
-    public function testVerifyBulkSuccess(): void
+    public function testVerifyBatchSuccess(): void
     {
         $responseData = [
-            'job_id' => 'job_123',
-            'status' => 'processing',
-            'total' => 3,
-            'processed' => 0,
-            'valid' => 0,
-            'invalid' => 0,
-            'unknown' => 0,
-            'credits_used' => 3,
-            'created_at' => '2025-01-15T10:30:00Z',
+            'results' => [
+                ['email' => 'user1@example.com', 'status' => 'valid', 'score' => 0.95, 'is_deliverable' => true, 'credits_used' => 1],
+                ['email' => 'user2@example.com', 'status' => 'invalid', 'score' => 0.0, 'is_deliverable' => false, 'credits_used' => 0],
+                ['email' => 'user3@example.com', 'status' => 'valid', 'score' => 0.90, 'is_deliverable' => true, 'credits_used' => 1],
+            ],
+            'total_emails' => 3,
+            'valid_emails' => 2,
+            'invalid_emails' => 1,
+            'credits_used' => 2,
+            'process_time' => 1500,
         ];
 
         $client = $this->createClientWithMockHandler([
             new Response(200, [], json_encode($responseData)),
         ]);
 
-        $result = $client->verifyBulk([
+        $result = $client->verifyBatch([
             'user1@example.com',
             'user2@example.com',
             'user3@example.com',
         ]);
 
-        $this->assertEquals('job_123', $result['job_id']);
-        $this->assertEquals('processing', $result['status']);
-        $this->assertEquals(3, $result['total']);
+        $this->assertEquals(3, $result['total_emails']);
+        $this->assertEquals(2, $result['valid_emails']);
+        $this->assertCount(3, $result['results']);
     }
 
-    public function testVerifyBulkTooManyEmails(): void
+    public function testVerifyBatchTooManyEmails(): void
     {
         $client = new Client('test-key');
-        $emails = array_fill(0, 10001, 'test@example.com');
+        $emails = array_fill(0, 51, 'test@example.com');
 
         $this->expectException(ValidationException::class);
-        $client->verifyBulk($emails);
+        $client->verifyBatch($emails);
     }
 
-    public function testGetBulkJobStatus(): void
+    public function testGetFileJobStatus(): void
     {
         $responseData = [
             'job_id' => 'job_123',
             'status' => 'processing',
-            'total' => 100,
-            'processed' => 50,
-            'valid' => 40,
-            'invalid' => 5,
-            'unknown' => 5,
-            'credits_used' => 100,
+            'file_name' => 'emails.csv',
+            'total_emails' => 100,
+            'processed_emails' => 50,
+            'valid_emails' => 40,
+            'invalid_emails' => 5,
+            'unknown_emails' => 5,
+            'credits_used' => 50,
             'created_at' => '2025-01-15T10:30:00Z',
             'progress_percent' => 50,
         ];
@@ -228,38 +230,25 @@ class ClientTest extends TestCase
             new Response(200, [], json_encode($responseData)),
         ]);
 
-        $result = $client->getBulkJobStatus('job_123');
+        $result = $client->getFileJobStatus('job_123');
 
         $this->assertEquals('job_123', $result['job_id']);
         $this->assertEquals(50, $result['progress_percent']);
     }
 
-    public function testGetBulkJobResults(): void
+    public function testGetFileJobResults(): void
     {
-        $responseData = [
-            'job_id' => 'job_123',
-            'total' => 100,
-            'limit' => 50,
-            'offset' => 0,
-            'results' => [
-                [
-                    'email' => 'test@example.com',
-                    'status' => 'valid',
-                    'result' => ['deliverable' => true],
-                    'score' => 0.95,
-                ],
-            ],
-        ];
+        // Mock a redirect response (307) followed by CSV content
+        $csvContent = "email,status,score\ntest@example.com,valid,0.95";
 
         $client = $this->createClientWithMockHandler([
-            new Response(200, [], json_encode($responseData)),
+            new Response(200, ['Content-Type' => 'text/csv'], $csvContent),
         ]);
 
-        $result = $client->getBulkJobResults('job_123', 50, 0, 'valid');
+        $result = $client->getFileJobResults('job_123', true);
 
-        $this->assertEquals('job_123', $result['job_id']);
-        $this->assertCount(1, $result['results']);
-        $this->assertEquals('test@example.com', $result['results'][0]['email']);
+        $this->assertStringContainsString('test@example.com', $result);
+        $this->assertStringContainsString('valid', $result);
     }
 
     public function testGetCredits(): void
@@ -292,8 +281,11 @@ class ClientTest extends TestCase
         $responseData = [
             'id' => 'webhook_123',
             'url' => 'https://example.com/webhook',
-            'events' => ['verification.completed'],
+            'events' => ['file.completed'],
+            'secret' => 'generated-secret',
+            'is_active' => true,
             'created_at' => '2025-01-15T10:30:00Z',
+            'updated_at' => '2025-01-15T10:30:00Z',
         ];
 
         $client = $this->createClientWithMockHandler([
@@ -302,12 +294,12 @@ class ClientTest extends TestCase
 
         $result = $client->createWebhook(
             'https://example.com/webhook',
-            ['verification.completed'],
-            'secret'
+            ['file.completed']
         );
 
         $this->assertEquals('webhook_123', $result['id']);
         $this->assertEquals('https://example.com/webhook', $result['url']);
+        $this->assertEquals('generated-secret', $result['secret']);
     }
 
     public function testListWebhooks(): void
@@ -316,8 +308,10 @@ class ClientTest extends TestCase
             [
                 'id' => 'webhook_123',
                 'url' => 'https://example.com/webhook',
-                'events' => ['verification.completed'],
+                'events' => ['file.completed'],
+                'is_active' => true,
                 'created_at' => '2025-01-15T10:30:00Z',
+                'updated_at' => '2025-01-15T10:30:00Z',
             ],
         ];
 

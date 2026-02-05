@@ -39,7 +39,7 @@ class Client
         }
 
         $this->apiKey = $apiKey;
-        $this->baseUrl = rtrim($baseUrl ?? self::DEFAULT_BASE_URL, '/');
+        $this->baseUrl = rtrim($baseUrl ?? self::DEFAULT_BASE_URL, '/') . '/';
         $this->timeout = $timeout;
         $this->retries = $retries;
 
@@ -47,7 +47,7 @@ class Client
             'base_uri' => $this->baseUrl,
             'timeout' => $this->timeout,
             'headers' => [
-                'EMAILVERIFY-API-KEY' => $this->apiKey,
+                'EV-API-KEY' => $this->apiKey,
                 'Content-Type' => 'application/json',
                 'User-Agent' => self::USER_AGENT,
             ],
@@ -112,10 +112,10 @@ class Client
             case 401:
                 throw new AuthenticationException($message);
 
+            case 402:
+                throw new InsufficientCreditsException($message);
+
             case 403:
-                if ($code === 'INSUFFICIENT_CREDITS') {
-                    throw new InsufficientCreditsException($message);
-                }
                 throw new EmailVerifyException($message, $code, 403);
 
             case 404:
@@ -148,117 +148,256 @@ class Client
     }
 
     /**
-     * Verify a single email address.
+     * Make a multipart/form-data request for file uploads.
      *
-     * @param string $email The email address to verify
-     * @param bool $smtpCheck Whether to perform SMTP verification
-     * @param int|null $timeout Verification timeout in milliseconds
-     * @return array Verification result
      * @throws EmailVerifyException
      */
-    public function verify(string $email, bool $smtpCheck = true, ?int $timeout = null): array
+    private function multipartRequest(string $path, array $multipart, int $attempt = 1): array
     {
-        $payload = [
-            'email' => $email,
-            'smtp_check' => $smtpCheck,
-        ];
+        try {
+            $response = $this->httpClient->request('POST', $path, [
+                'multipart' => $multipart,
+                'headers' => [
+                    'EV-API-KEY' => $this->apiKey,
+                    'User-Agent' => self::USER_AGENT,
+                ],
+            ]);
 
-        if ($timeout !== null) {
-            $payload['timeout'] = $timeout;
+            $contents = $response->getBody()->getContents();
+            return json_decode($contents, true);
+        } catch (ConnectException $e) {
+            throw new TimeoutException('Connection timed out: ' . $e->getMessage());
+        } catch (RequestException $e) {
+            $response = $e->getResponse();
+            if ($response === null) {
+                throw new EmailVerifyException('Network error: ' . $e->getMessage(), 'NETWORK_ERROR', 0);
+            }
+
+            $statusCode = $response->getStatusCode();
+            $contents = $response->getBody()->getContents();
+            $data = json_decode($contents, true) ?? [];
+            $error = $data['error'] ?? [];
+            $message = $error['message'] ?? $response->getReasonPhrase();
+            $code = $error['code'] ?? 'UNKNOWN_ERROR';
+            $details = $error['details'] ?? null;
+
+            return $this->handleErrorResponse($statusCode, $message, $code, $details, 'POST', $path, null, $attempt, $response);
         }
-
-        return $this->request('POST', '/verify', $payload);
     }
 
     /**
-     * Submit a bulk verification job.
+     * Verify a single email address.
      *
-     * @param array $emails Array of email addresses (max 10,000)
-     * @param bool $smtpCheck Whether to perform SMTP verification
-     * @param string|null $webhookUrl URL to receive completion notification
-     * @return array Bulk job response
+     * @param string $email The email address to verify
+     * @param bool $checkSmtp Whether to perform SMTP verification
+     * @return array Verification result
      * @throws EmailVerifyException
      */
-    public function verifyBulk(array $emails, bool $smtpCheck = true, ?string $webhookUrl = null): array
+    public function verify(string $email, bool $checkSmtp = true): array
     {
-        if (count($emails) > 10000) {
-            throw new ValidationException('Maximum 10,000 emails per bulk job');
+        $payload = [
+            'email' => $email,
+            'check_smtp' => $checkSmtp,
+        ];
+
+        return $this->request('POST', 'verify/single', $payload);
+    }
+
+    /**
+     * Verify multiple email addresses in a single synchronous request.
+     *
+     * @param array $emails Array of email addresses (max 50)
+     * @param bool $checkSmtp Whether to perform SMTP verification
+     * @return array Batch verification results
+     * @throws EmailVerifyException
+     */
+    public function verifyBatch(array $emails, bool $checkSmtp = true): array
+    {
+        if (count($emails) > 50) {
+            throw new ValidationException('Maximum 50 emails per batch request. For larger lists, use uploadFile().');
         }
 
         $payload = [
             'emails' => $emails,
-            'smtp_check' => $smtpCheck,
+            'check_smtp' => $checkSmtp,
         ];
 
-        if ($webhookUrl !== null) {
-            $payload['webhook_url'] = $webhookUrl;
-        }
-
-        return $this->request('POST', '/verify/bulk', $payload);
+        return $this->request('POST', 'verify/bulk', $payload);
     }
 
     /**
-     * Get the status of a bulk verification job.
+     * Upload a file for asynchronous batch verification.
      *
-     * @param string $jobId The bulk job ID
+     * Supported formats: CSV (.csv), Excel (.xlsx, .xls), Text (.txt)
+     * Limits: Max 20MB file size, 100,000 emails per file.
+     *
+     * @param string $filePath Path to the file containing email addresses
+     * @param bool $checkSmtp Whether to perform SMTP verification
+     * @param string|null $emailColumn Column name containing email addresses (auto-detected if null)
+     * @param bool $preserveOriginal Keep original columns in result file
+     * @return array Upload response with task_id and status
+     * @throws EmailVerifyException
+     */
+    public function uploadFile(
+        string $filePath,
+        bool $checkSmtp = true,
+        ?string $emailColumn = null,
+        bool $preserveOriginal = true
+    ): array {
+        if (!file_exists($filePath)) {
+            throw new ValidationException("File not found: {$filePath}");
+        }
+
+        $multipart = [
+            [
+                'name' => 'file',
+                'contents' => fopen($filePath, 'r'),
+                'filename' => basename($filePath),
+            ],
+            [
+                'name' => 'check_smtp',
+                'contents' => $checkSmtp ? 'true' : 'false',
+            ],
+            [
+                'name' => 'preserve_original',
+                'contents' => $preserveOriginal ? 'true' : 'false',
+            ],
+        ];
+
+        if ($emailColumn !== null) {
+            $multipart[] = [
+                'name' => 'email_column',
+                'contents' => $emailColumn,
+            ];
+        }
+
+        return $this->multipartRequest('verify/file', $multipart);
+    }
+
+    /**
+     * Get the status of a file verification job.
+     *
+     * @param string $jobId The job ID returned from file upload
+     * @param int $timeout Long-polling timeout in seconds (0-300). If set, waits until job completes or timeout.
      * @return array Job status
      * @throws EmailVerifyException
      */
-    public function getBulkJobStatus(string $jobId): array
+    public function getFileJobStatus(string $jobId, int $timeout = 0): array
     {
-        return $this->request('GET', "/verify/bulk/{$jobId}");
-    }
-
-    /**
-     * Get the results of a completed bulk verification job.
-     *
-     * @param string $jobId The bulk job ID
-     * @param int $limit Number of results per page (default: 100, max: 1000)
-     * @param int $offset Starting position (default: 0)
-     * @param string|null $status Filter by status ('valid', 'invalid', 'unknown')
-     * @return array Bulk results
-     * @throws EmailVerifyException
-     */
-    public function getBulkJobResults(string $jobId, int $limit = 100, int $offset = 0, ?string $status = null): array
-    {
-        $query = http_build_query(array_filter([
-            'limit' => $limit,
-            'offset' => $offset,
-            'status' => $status,
-        ]));
-
-        $path = "/verify/bulk/{$jobId}/results";
-        if ($query) {
-            $path .= "?{$query}";
+        $path = "verify/file/{$jobId}";
+        if ($timeout > 0) {
+            $timeout = min($timeout, 300);
+            $path .= "?timeout={$timeout}";
         }
 
         return $this->request('GET', $path);
     }
 
     /**
-     * Wait for bulk job completion.
+     * Download verification results for a completed file job.
      *
-     * @param string $jobId The bulk job ID
+     * Without filters: Returns redirect to the full result file.
+     * With filters: Returns CSV containing only matching emails.
+     * Multiple filters can be combined (OR logic).
+     *
+     * @param string $jobId The job ID
+     * @param bool|null $valid Include valid emails
+     * @param bool|null $invalid Include invalid emails
+     * @param bool|null $catchall Include catch-all emails
+     * @param bool|null $role Include role emails
+     * @param bool|null $unknown Include unknown emails
+     * @param bool|null $disposable Include disposable emails
+     * @param bool|null $risky Include risky emails
+     * @return string CSV content or redirect URL
+     * @throws EmailVerifyException
+     */
+    public function getFileJobResults(
+        string $jobId,
+        ?bool $valid = null,
+        ?bool $invalid = null,
+        ?bool $catchall = null,
+        ?bool $role = null,
+        ?bool $unknown = null,
+        ?bool $disposable = null,
+        ?bool $risky = null
+    ): string {
+        $filters = [];
+        if ($valid === true) $filters['valid'] = 'true';
+        if ($invalid === true) $filters['invalid'] = 'true';
+        if ($catchall === true) $filters['catchall'] = 'true';
+        if ($role === true) $filters['role'] = 'true';
+        if ($unknown === true) $filters['unknown'] = 'true';
+        if ($disposable === true) $filters['disposable'] = 'true';
+        if ($risky === true) $filters['risky'] = 'true';
+
+        $path = "verify/file/{$jobId}/results";
+        if (!empty($filters)) {
+            $path .= '?' . http_build_query($filters);
+        }
+
+        try {
+            $response = $this->httpClient->request('GET', $path, [
+                'allow_redirects' => false,
+            ]);
+
+            $statusCode = $response->getStatusCode();
+
+            // Handle redirect (307)
+            if ($statusCode === 307) {
+                $location = $response->getHeaderLine('Location');
+                if ($location) {
+                    // Follow redirect to get the file
+                    $redirectResponse = $this->httpClient->request('GET', $location);
+                    return $redirectResponse->getBody()->getContents();
+                }
+            }
+
+            return $response->getBody()->getContents();
+        } catch (RequestException $e) {
+            $response = $e->getResponse();
+            if ($response === null) {
+                throw new EmailVerifyException('Network error: ' . $e->getMessage(), 'NETWORK_ERROR', 0);
+            }
+
+            $statusCode = $response->getStatusCode();
+            $contents = $response->getBody()->getContents();
+            $data = json_decode($contents, true) ?? [];
+            $error = $data['error'] ?? [];
+            $message = $error['message'] ?? $response->getReasonPhrase();
+
+            match ($statusCode) {
+                401 => throw new AuthenticationException($message),
+                404 => throw new NotFoundException($message),
+                default => throw new EmailVerifyException($message, $error['code'] ?? 'UNKNOWN_ERROR', $statusCode),
+            };
+        }
+    }
+
+    /**
+     * Wait for file job completion.
+     *
+     * @param string $jobId The job ID returned from file upload
      * @param int $pollInterval Time between polls in seconds (default: 5)
      * @param int $maxWait Maximum wait time in seconds (default: 600)
      * @return array Final job status
      * @throws EmailVerifyException
      */
-    public function waitForBulkJobCompletion(string $jobId, int $pollInterval = 5, int $maxWait = 600): array
+    public function waitForFileJobCompletion(string $jobId, int $pollInterval = 5, int $maxWait = 600): array
     {
         $startTime = time();
 
         while (time() - $startTime < $maxWait) {
-            $status = $this->getBulkJobStatus($jobId);
+            $response = $this->getFileJobStatus($jobId);
+            $status = $response['data']['status'] ?? $response['status'] ?? null;
 
-            if (in_array($status['status'], ['completed', 'failed'], true)) {
-                return $status;
+            if (in_array($status, ['completed', 'failed'], true)) {
+                return $response;
             }
 
             sleep($pollInterval);
         }
 
-        throw new TimeoutException("Bulk job {$jobId} did not complete within {$maxWait} seconds");
+        throw new TimeoutException("File job {$jobId} did not complete within {$maxWait} seconds");
     }
 
     /**
@@ -269,30 +408,27 @@ class Client
      */
     public function getCredits(): array
     {
-        return $this->request('GET', '/credits');
+        return $this->request('GET', 'credits');
     }
 
     /**
      * Create a new webhook.
      *
-     * @param string $url The webhook URL
-     * @param array $events List of events to subscribe to
-     * @param string|null $secret Optional webhook secret
-     * @return array Webhook configuration
+     * The webhook secret is returned in the response. Store it securely for signature verification.
+     *
+     * @param string $url The HTTPS webhook URL
+     * @param array $events List of events to subscribe to ('file.completed', 'file.failed')
+     * @return array Webhook configuration including the secret
      * @throws EmailVerifyException
      */
-    public function createWebhook(string $url, array $events, ?string $secret = null): array
+    public function createWebhook(string $url, array $events): array
     {
         $payload = [
             'url' => $url,
             'events' => $events,
         ];
 
-        if ($secret !== null) {
-            $payload['secret'] = $secret;
-        }
-
-        return $this->request('POST', '/webhooks', $payload);
+        return $this->request('POST', 'webhooks', $payload);
     }
 
     /**
@@ -303,7 +439,7 @@ class Client
      */
     public function listWebhooks(): array
     {
-        return $this->request('GET', '/webhooks');
+        return $this->request('GET', 'webhooks');
     }
 
     /**
@@ -314,7 +450,7 @@ class Client
      */
     public function deleteWebhook(string $webhookId): void
     {
-        $this->request('DELETE', "/webhooks/{$webhookId}");
+        $this->request('DELETE', "webhooks/{$webhookId}");
     }
 
     /**
@@ -329,5 +465,34 @@ class Client
     {
         $expectedSignature = 'sha256=' . hash_hmac('sha256', $payload, $secret);
         return hash_equals($expectedSignature, $signature);
+    }
+
+    /**
+     * Health check endpoint. No authentication required.
+     *
+     * @param string|null $baseUrl Optional base URL override (defaults to the client's base URL)
+     * @return array Health status with 'status' and 'time' fields
+     */
+    public static function healthCheck(?string $baseUrl = null): array
+    {
+        $url = rtrim($baseUrl ?? 'https://api.emailverify.ai', '/') . '/health';
+
+        $client = new HttpClient([
+            'timeout' => 10,
+            'headers' => [
+                'User-Agent' => self::USER_AGENT,
+            ],
+        ]);
+
+        try {
+            $response = $client->request('GET', $url);
+            $contents = $response->getBody()->getContents();
+            return json_decode($contents, true);
+        } catch (\Exception $e) {
+            return [
+                'status' => 'error',
+                'message' => $e->getMessage(),
+            ];
+        }
     }
 }

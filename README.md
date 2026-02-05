@@ -28,7 +28,7 @@ $client = new Client('your-api-key');
 
 // Verify a single email
 $result = $client->verify('user@example.com');
-echo $result['status']; // 'valid', 'invalid', 'unknown', or 'accept_all'
+echo $result['data']['status']; // 'valid', 'invalid', 'unknown', 'catchall', 'risky', 'disposable', 'role'
 ```
 
 ## Configuration
@@ -47,51 +47,89 @@ $client = new Client(
 ```php
 $result = $client->verify(
     email: 'user@example.com',
-    smtpCheck: true,  // Optional: Perform SMTP verification (default: true)
-    timeout: 5000     // Optional: Verification timeout in ms
+    checkSmtp: true  // Optional: Perform SMTP verification (default: true)
 );
 
-echo $result['email'];                    // 'user@example.com'
-echo $result['status'];                   // 'valid'
-echo $result['score'];                    // 0.95
-echo $result['result']['deliverable'];    // true
-echo $result['result']['disposable'];     // false
+echo $result['data']['email'];           // 'user@example.com'
+echo $result['data']['status'];          // 'valid'
+echo $result['data']['score'];           // 0.95
+echo $result['data']['is_deliverable'];  // true
+echo $result['data']['is_disposable'];   // false
 ```
 
-## Bulk Email Verification
+## Batch Email Verification
+
+Verify up to 50 emails in a single synchronous request.
 
 ```php
-// Submit a bulk verification job
-$job = $client->verifyBulk(
+$results = $client->verifyBatch(
     emails: ['user1@example.com', 'user2@example.com', 'user3@example.com'],
-    smtpCheck: true,
-    webhookUrl: 'https://your-app.com/webhooks/emailverify'  // Optional
+    checkSmtp: true  // Optional
 );
 
-echo $job['job_id'];  // 'job_abc123xyz'
+echo $results['data']['total_emails'];  // 3
+echo $results['data']['valid_emails'];  // 2
+echo $results['data']['credits_used'];  // 2
 
-// Check job status
-$status = $client->getBulkJobStatus($job['job_id']);
-echo $status['progress_percent'];  // 45
+foreach ($results['data']['results'] as $item) {
+    echo "{$item['email']}: {$item['status']}\n";
+}
+```
+
+## File Upload Verification
+
+For larger lists (up to 100,000 emails), upload a file for asynchronous processing.
+
+```php
+// Upload a file
+$job = $client->uploadFile(
+    filePath: '/path/to/emails.csv',
+    checkSmtp: true,           // Optional: Perform SMTP verification (default: true)
+    emailColumn: 'email',      // Optional: Column name (auto-detected if null)
+    preserveOriginal: true     // Optional: Keep original columns in result (default: true)
+);
+
+echo $job['data']['task_id'];  // '7143874e-21c5-43c1-96f3-2b52ea41ae6a'
+
+// Check job status (with optional long-polling)
+$status = $client->getFileJobStatus(
+    jobId: $job['data']['task_id'],
+    timeout: 60  // Optional: Wait up to 60 seconds for completion (0-300)
+);
+echo $status['data']['progress_percent'];  // 45
 
 // Wait for completion (polling)
-$completed = $client->waitForBulkJobCompletion(
-    jobId: $job['job_id'],
+$completed = $client->waitForFileJobCompletion(
+    jobId: $job['data']['task_id'],
     pollInterval: 5,  // seconds
     maxWait: 600      // seconds
 );
 
-// Get results
-$results = $client->getBulkJobResults(
-    jobId: $job['job_id'],
-    limit: 100,
-    offset: 0,
-    status: 'valid'  // Optional: filter by status
+// Download results with optional filters
+$results = $client->getFileJobResults(
+    jobId: $job['data']['task_id'],
+    valid: true,       // Include valid emails
+    invalid: false,    // Exclude invalid emails
+    catchall: true,    // Include catch-all emails
+    role: false,       // Exclude role emails
+    unknown: false,    // Exclude unknown emails
+    disposable: false, // Exclude disposable emails
+    risky: false       // Exclude risky emails
 );
+```
 
-foreach ($results['results'] as $item) {
-    echo "{$item['email']}: {$item['status']}\n";
-}
+## Health Check
+
+Check API health (no authentication required).
+
+```php
+// Static method - can be called without an API key
+$health = Client::healthCheck();
+echo $health['status'];  // 'ok'
+echo $health['time'];    // Unix timestamp
+
+// With custom base URL
+$health = Client::healthCheck('https://api.emailverify.ai');
 ```
 
 ## Credits
@@ -99,32 +137,33 @@ foreach ($results['results'] as $item) {
 ```php
 $credits = $client->getCredits();
 
-echo $credits['available'];                  // 9500
-echo $credits['plan'];                       // 'Professional'
-echo $credits['rate_limit']['remaining'];    // 9850
+echo $credits['data']['credits_balance'];  // 9500
+echo $credits['data']['credits_consumed']; // 500
 ```
 
 ## Webhooks
 
 ```php
-// Create a webhook
+// Create a webhook (secret is returned in response - store it securely!)
 $webhook = $client->createWebhook(
     url: 'https://your-app.com/webhooks/emailverify',
-    events: ['verification.completed', 'bulk.completed'],
-    secret: 'your-webhook-secret'
+    events: ['file.completed', 'file.failed']
 );
+
+echo $webhook['data']['id'];      // Webhook ID
+echo $webhook['data']['secret'];  // Store this securely!
 
 // List webhooks
 $webhooks = $client->listWebhooks();
 
 // Delete a webhook
-$client->deleteWebhook($webhook['id']);
+$client->deleteWebhook($webhook['data']['id']);
 
 // Verify webhook signature
 $isValid = Client::verifyWebhookSignature(
     payload: $rawBody,
     signature: $signatureHeader,
-    secret: 'your-webhook-secret'
+    secret: 'your-stored-webhook-secret'
 );
 ```
 
@@ -150,7 +189,7 @@ try {
     echo "Invalid input: {$e->getMessage()}\n";
     echo "Details: {$e->getDetails()}\n";
 } catch (InsufficientCreditsException $e) {
-    echo "Not enough credits\n";
+    echo "Not enough credits (HTTP 402)\n";
 } catch (NotFoundException $e) {
     echo "Resource not found\n";
 } catch (TimeoutException $e) {
@@ -163,17 +202,24 @@ try {
 ## Webhook Events
 
 Available webhook events:
-- `verification.completed` - Single email verification completed
-- `bulk.completed` - Bulk job finished
-- `bulk.failed` - Bulk job failed
-- `credits.low` - Credits below threshold
+- `file.completed` - File verification job completed successfully
+- `file.failed` - File verification job failed
 
 ## Verification Status Values
 
 - `valid` - Email exists and can receive messages
 - `invalid` - Email doesn't exist or can't receive messages
 - `unknown` - Could not determine validity with certainty
-- `accept_all` - Domain accepts all emails (catch-all)
+- `catchall` - Domain accepts all emails (catch-all server)
+- `risky` - Email is deliverable but may have issues
+- `disposable` - Temporary/disposable email address
+- `role` - Role-based email (info@, support@, etc.)
+
+## Credits Usage
+
+- `invalid` emails: 0 credits (not charged)
+- `unknown` status: 0 credits (not charged)
+- All other statuses (`valid`, `risky`, `disposable`, `catchall`, `role`): 1 credit each
 
 ## License
 
