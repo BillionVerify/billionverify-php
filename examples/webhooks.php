@@ -14,14 +14,14 @@ declare(strict_types=1);
 
 require __DIR__ . '/../vendor/autoload.php';
 
-use EmailVerify\Client;
-use EmailVerify\Exception\AuthenticationException;
-use EmailVerify\Exception\ValidationException;
-use EmailVerify\Exception\NotFoundException;
-use EmailVerify\Exception\EmailVerifyException;
+use BillionVerify\Client;
+use BillionVerify\Exception\AuthenticationException;
+use BillionVerify\Exception\ValidationException;
+use BillionVerify\Exception\NotFoundException;
+use BillionVerify\Exception\BillionVerifyException;
 
 // Initialize client with your API key
-$apiKey = getenv('EMAILVERIFY_API_KEY') ?: 'your-api-key-here';
+$apiKey = getenv('BILLIONVERIFY_API_KEY') ?: 'your-api-key-here';
 $client = new Client($apiKey);
 
 // -----------------------------------------------------------------------------
@@ -34,7 +34,7 @@ try {
     // - 'file.completed' - File verification job completed successfully
     // - 'file.failed' - File verification job failed
     $webhook = $client->createWebhook(
-        url: 'https://your-app.com/webhooks/emailverify',
+        url: 'https://your-app.com/webhooks/billionverify',
         events: ['file.completed', 'file.failed']
     );
 
@@ -54,7 +54,7 @@ try {
     echo "Details: {$e->getDetails()}\n";
 } catch (AuthenticationException $e) {
     echo "Authentication failed: Invalid API key\n";
-} catch (EmailVerifyException $e) {
+} catch (BillionVerifyException $e) {
     echo "Error [{$e->getErrorCode()}]: {$e->getMessage()}\n";
 }
 
@@ -83,7 +83,7 @@ try {
 
 } catch (AuthenticationException $e) {
     echo "Authentication failed: Invalid API key\n";
-} catch (EmailVerifyException $e) {
+} catch (BillionVerifyException $e) {
     echo "Error [{$e->getErrorCode()}]: {$e->getMessage()}\n";
 }
 
@@ -102,7 +102,7 @@ try {
     echo "Webhook not found: {$e->getMessage()}\n";
 } catch (AuthenticationException $e) {
     echo "Authentication failed: Invalid API key\n";
-} catch (EmailVerifyException $e) {
+} catch (BillionVerifyException $e) {
     echo "Error [{$e->getErrorCode()}]: {$e->getMessage()}\n";
 }
 
@@ -114,8 +114,8 @@ echo "=== Verify Webhook Signature ===\n";
 /**
  * Example webhook handler for your application.
  *
- * When EmailVerify sends a webhook, it includes a signature in the
- * 'X-EmailVerify-Signature' header. You should verify this signature
+ * When BillionVerify sends a webhook, it includes a signature in the
+ * 'X-BillionVerify-Signature' header. You should verify this signature
  * to ensure the request is authentic.
  */
 
@@ -125,10 +125,10 @@ echo "=== Verify Webhook Signature ===\n";
 // $rawBody = file_get_contents('php://input');
 
 // Get the signature from the request header
-// $signature = $_SERVER['HTTP_X_EMAILVERIFY_SIGNATURE'] ?? '';
+// $signature = $_SERVER['HTTP_X_BILLIONVERIFY_SIGNATURE'] ?? '';
 
 // Your webhook secret (stored securely when you created the webhook)
-// $webhookSecret = getenv('EMAILVERIFY_WEBHOOK_SECRET');
+// $webhookSecret = getenv('BILLIONVERIFY_WEBHOOK_SECRET');
 
 // Example webhook payload and signature for demonstration
 $examplePayload = json_encode([
@@ -193,20 +193,20 @@ echo "=== Complete Webhook Handler Example ===\n";
 
 echo <<<'PHP'
 <?php
-// webhooks/emailverify.php
+// webhooks/billionverify.php
 
 require __DIR__ . '/../vendor/autoload.php';
 
-use EmailVerify\Client;
+use BillionVerify\Client;
 
 // Get the raw request body
 $rawBody = file_get_contents('php://input');
 
 // Get the signature from the header
-$signature = $_SERVER['HTTP_X_EMAILVERIFY_SIGNATURE'] ?? '';
+$signature = $_SERVER['HTTP_X_BILLIONVERIFY_SIGNATURE'] ?? '';
 
 // Your webhook secret (stored securely)
-$webhookSecret = getenv('EMAILVERIFY_WEBHOOK_SECRET');
+$webhookSecret = getenv('BILLIONVERIFY_WEBHOOK_SECRET');
 
 // Verify the signature
 if (!Client::verifyWebhookSignature($rawBody, $signature, $webhookSecret)) {

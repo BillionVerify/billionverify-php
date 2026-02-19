@@ -14,15 +14,15 @@ declare(strict_types=1);
 
 require __DIR__ . '/../vendor/autoload.php';
 
-use EmailVerify\Client;
-use EmailVerify\Exception\AuthenticationException;
-use EmailVerify\Exception\RateLimitException;
-use EmailVerify\Exception\ValidationException;
-use EmailVerify\Exception\InsufficientCreditsException;
-use EmailVerify\Exception\EmailVerifyException;
+use BillionVerify\Client;
+use BillionVerify\Exception\AuthenticationException;
+use BillionVerify\Exception\RateLimitException;
+use BillionVerify\Exception\ValidationException;
+use BillionVerify\Exception\InsufficientCreditsException;
+use BillionVerify\Exception\BillionVerifyException;
 
 // Initialize client with your API key
-$apiKey = getenv('EMAILVERIFY_API_KEY') ?: 'your-api-key-here';
+$apiKey = getenv('BILLIONVERIFY_API_KEY') ?: 'your-api-key-here';
 $client = new Client($apiKey);
 
 // -----------------------------------------------------------------------------
@@ -64,7 +64,7 @@ try {
     echo "Insufficient credits: {$e->getMessage()}\n";
 } catch (RateLimitException $e) {
     echo "Rate limited. Retry after {$e->getRetryAfter()} seconds\n";
-} catch (EmailVerifyException $e) {
+} catch (BillionVerifyException $e) {
     echo "Error [{$e->getErrorCode()}]: {$e->getMessage()}\n";
 }
 
@@ -101,7 +101,7 @@ try {
     // Thrown if more than 50 emails are provided
     echo "Validation error: {$e->getMessage()}\n";
     echo "Details: {$e->getDetails()}\n";
-} catch (EmailVerifyException $e) {
+} catch (BillionVerifyException $e) {
     echo "Error [{$e->getErrorCode()}]: {$e->getMessage()}\n";
 }
 
@@ -118,6 +118,6 @@ try {
 
 } catch (AuthenticationException $e) {
     echo "Authentication failed: Invalid API key\n";
-} catch (EmailVerifyException $e) {
+} catch (BillionVerifyException $e) {
     echo "Error [{$e->getErrorCode()}]: {$e->getMessage()}\n";
 }

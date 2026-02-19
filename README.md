@@ -1,8 +1,8 @@
-# EmailVerify PHP SDK
+# BillionVerify PHP SDK
 
-Official EmailVerify PHP SDK for email verification.
+Official BillionVerify PHP SDK for email verification.
 
-**Documentation:** https://emailverify.ai/docs
+**Documentation:** https://billionverify.com/docs
 
 ## Requirements
 
@@ -12,7 +12,7 @@ Official EmailVerify PHP SDK for email verification.
 ## Installation
 
 ```bash
-composer require emailverify/php-sdk
+composer require billionverify/php-sdk
 ```
 
 ## Quick Start
@@ -22,7 +22,7 @@ composer require emailverify/php-sdk
 
 require 'vendor/autoload.php';
 
-use EmailVerify\Client;
+use BillionVerify\Client;
 
 $client = new Client('your-api-key');
 
@@ -36,7 +36,7 @@ echo $result['data']['status']; // 'valid', 'invalid', 'unknown', 'catchall', 'r
 ```php
 $client = new Client(
     apiKey: 'your-api-key',        // Required
-    baseUrl: 'https://api.emailverify.ai/v1',  // Optional
+    baseUrl: 'https://api.billionverify.com/v1',  // Optional
     timeout: 30,                    // Optional: Request timeout in seconds (default: 30)
     retries: 3                      // Optional: Number of retries (default: 3)
 );
@@ -129,7 +129,7 @@ echo $health['status'];  // 'ok'
 echo $health['time'];    // Unix timestamp
 
 // With custom base URL
-$health = Client::healthCheck('https://api.emailverify.ai');
+$health = Client::healthCheck('https://api.billionverify.com');
 ```
 
 ## Credits
@@ -146,7 +146,7 @@ echo $credits['data']['credits_consumed']; // 500
 ```php
 // Create a webhook (secret is returned in response - store it securely!)
 $webhook = $client->createWebhook(
-    url: 'https://your-app.com/webhooks/emailverify',
+    url: 'https://your-app.com/webhooks/billionverify',
     events: ['file.completed', 'file.failed']
 );
 
@@ -170,14 +170,14 @@ $isValid = Client::verifyWebhookSignature(
 ## Error Handling
 
 ```php
-use EmailVerify\Client;
-use EmailVerify\Exception\AuthenticationException;
-use EmailVerify\Exception\RateLimitException;
-use EmailVerify\Exception\ValidationException;
-use EmailVerify\Exception\InsufficientCreditsException;
-use EmailVerify\Exception\NotFoundException;
-use EmailVerify\Exception\TimeoutException;
-use EmailVerify\Exception\EmailVerifyException;
+use BillionVerify\Client;
+use BillionVerify\Exception\AuthenticationException;
+use BillionVerify\Exception\RateLimitException;
+use BillionVerify\Exception\ValidationException;
+use BillionVerify\Exception\InsufficientCreditsException;
+use BillionVerify\Exception\NotFoundException;
+use BillionVerify\Exception\TimeoutException;
+use BillionVerify\Exception\BillionVerifyException;
 
 try {
     $result = $client->verify('user@example.com');
@@ -194,7 +194,7 @@ try {
     echo "Resource not found\n";
 } catch (TimeoutException $e) {
     echo "Request timed out\n";
-} catch (EmailVerifyException $e) {
+} catch (BillionVerifyException $e) {
     echo "Error [{$e->getErrorCode()}]: {$e->getMessage()}\n";
 }
 ```

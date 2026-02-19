@@ -14,15 +14,15 @@ declare(strict_types=1);
 
 require __DIR__ . '/../vendor/autoload.php';
 
-use EmailVerify\Client;
-use EmailVerify\Exception\AuthenticationException;
-use EmailVerify\Exception\ValidationException;
-use EmailVerify\Exception\NotFoundException;
-use EmailVerify\Exception\TimeoutException;
-use EmailVerify\Exception\EmailVerifyException;
+use BillionVerify\Client;
+use BillionVerify\Exception\AuthenticationException;
+use BillionVerify\Exception\ValidationException;
+use BillionVerify\Exception\NotFoundException;
+use BillionVerify\Exception\TimeoutException;
+use BillionVerify\Exception\BillionVerifyException;
 
 // Initialize client with your API key
-$apiKey = getenv('EMAILVERIFY_API_KEY') ?: 'your-api-key-here';
+$apiKey = getenv('BILLIONVERIFY_API_KEY') ?: 'your-api-key-here';
 $client = new Client($apiKey);
 
 // -----------------------------------------------------------------------------
@@ -54,7 +54,7 @@ try {
 } catch (AuthenticationException $e) {
     echo "Authentication failed: Invalid API key\n";
     exit(1);
-} catch (EmailVerifyException $e) {
+} catch (BillionVerifyException $e) {
     echo "Error [{$e->getErrorCode()}]: {$e->getMessage()}\n";
     exit(1);
 }
@@ -80,7 +80,7 @@ try {
 
 } catch (NotFoundException $e) {
     echo "Job not found: {$e->getMessage()}\n";
-} catch (EmailVerifyException $e) {
+} catch (BillionVerifyException $e) {
     echo "Error [{$e->getErrorCode()}]: {$e->getMessage()}\n";
 }
 
@@ -111,7 +111,7 @@ try {
 
 } catch (TimeoutException $e) {
     echo "Job did not complete in time: {$e->getMessage()}\n";
-} catch (EmailVerifyException $e) {
+} catch (BillionVerifyException $e) {
     echo "Error [{$e->getErrorCode()}]: {$e->getMessage()}\n";
 }
 
@@ -187,6 +187,6 @@ try {
 
 } catch (NotFoundException $e) {
     echo "Job not found or results not available: {$e->getMessage()}\n";
-} catch (EmailVerifyException $e) {
+} catch (BillionVerifyException $e) {
     echo "Error [{$e->getErrorCode()}]: {$e->getMessage()}\n";
 }

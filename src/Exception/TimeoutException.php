@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace EmailVerify\Exception;
+namespace BillionVerify\Exception;
 
-class TimeoutException extends EmailVerifyException
+class TimeoutException extends BillionVerifyException
 {
     public function __construct(string $message = 'Request timed out')
     {

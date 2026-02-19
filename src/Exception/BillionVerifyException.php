@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace EmailVerify\Exception;
+namespace BillionVerify\Exception;
 
 use Exception;
 
-class EmailVerifyException extends Exception
+class BillionVerifyException extends Exception
 {
     protected string $errorCode;
     protected int $statusCode;

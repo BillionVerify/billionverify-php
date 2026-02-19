@@ -1,24 +1,24 @@
 {
-    "name": "emailverify-ai/php-sdk",
-    "description": "Official EmailVerify PHP SDK for email verification",
+    "name": "billionverify/php-sdk",
+    "description": "Official BillionVerify PHP SDK for email verification",
     "type": "library",
     "license": "MIT",
     "authors": [
         {
-            "name": "EmailVerify",
-            "email": "support@emailverify.ai"
+            "name": "BillionVerify",
+            "email": "support@billionverify.com"
         }
     ],
     "keywords": [
         "email",
         "verification",
         "validation",
-        "emailverify",
+        "billionverify",
         "email-verification"
     ],
-    "homepage": "https://emailverify.ai",
+    "homepage": "https://billionverify.com",
     "support": {
-        "source": "https://github.com/emailverify-ai/php-sdk"
+        "source": "https://github.com/BillionVerify/php-sdk"
     },
     "require": {
         "php": ">=8.1",
@@ -30,12 +30,12 @@
     },
     "autoload": {
         "psr-4": {
-            "EmailVerify\\": "src/"
+            "BillionVerify\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "EmailVerify\\Tests\\": "tests/"
+            "BillionVerify\\Tests\\": "tests/"
         }
     },
     "config": {

@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace EmailVerify\Exception;
+namespace BillionVerify\Exception;
 
-class RateLimitException extends EmailVerifyException
+class RateLimitException extends BillionVerifyException
 {
     private int $retryAfter;
 

@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace EmailVerify\Exception;
+namespace BillionVerify\Exception;
 
-class AuthenticationException extends EmailVerifyException
+class AuthenticationException extends BillionVerifyException
 {
     public function __construct(string $message = 'Invalid or missing API key')
     {

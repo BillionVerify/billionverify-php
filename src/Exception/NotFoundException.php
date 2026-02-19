@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace EmailVerify\Exception;
+namespace BillionVerify\Exception;
 
-class NotFoundException extends EmailVerifyException
+class NotFoundException extends BillionVerifyException
 {
     public function __construct(string $message = 'Resource not found')
     {

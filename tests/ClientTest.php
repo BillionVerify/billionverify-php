@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace EmailVerify\Tests;
+namespace BillionVerify\Tests;
 
-use EmailVerify\Client;
-use EmailVerify\Exception\AuthenticationException;
-use EmailVerify\Exception\InsufficientCreditsException;
-use EmailVerify\Exception\NotFoundException;
-use EmailVerify\Exception\RateLimitException;
-use EmailVerify\Exception\ValidationException;
+use BillionVerify\Client;
+use BillionVerify\Exception\AuthenticationException;
+use BillionVerify\Exception\InsufficientCreditsException;
+use BillionVerify\Exception\NotFoundException;
+use BillionVerify\Exception\RateLimitException;
+use BillionVerify\Exception\ValidationException;
 use GuzzleHttp\Client as HttpClient;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;

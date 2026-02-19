@@ -2,25 +2,25 @@
 
 declare(strict_types=1);
 
-namespace EmailVerify;
+namespace BillionVerify;
 
-use EmailVerify\Exception\AuthenticationException;
-use EmailVerify\Exception\EmailVerifyException;
-use EmailVerify\Exception\InsufficientCreditsException;
-use EmailVerify\Exception\NotFoundException;
-use EmailVerify\Exception\RateLimitException;
-use EmailVerify\Exception\TimeoutException;
-use EmailVerify\Exception\ValidationException;
+use BillionVerify\Exception\AuthenticationException;
+use BillionVerify\Exception\BillionVerifyException;
+use BillionVerify\Exception\InsufficientCreditsException;
+use BillionVerify\Exception\NotFoundException;
+use BillionVerify\Exception\RateLimitException;
+use BillionVerify\Exception\TimeoutException;
+use BillionVerify\Exception\ValidationException;
 use GuzzleHttp\Client as HttpClient;
 use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Exception\RequestException;
 
 class Client
 {
-    private const DEFAULT_BASE_URL = 'https://api.emailverify.ai/v1';
+    private const DEFAULT_BASE_URL = 'https://api.billionverify.com/v1';
     private const DEFAULT_TIMEOUT = 30;
     private const DEFAULT_RETRIES = 3;
-    private const USER_AGENT = 'emailverify-php/1.0.0';
+    private const USER_AGENT = 'billionverify-php/1.0.0';
 
     private string $apiKey;
     private string $baseUrl;
@@ -55,7 +55,7 @@ class Client
     }
 
     /**
-     * @throws EmailVerifyException
+     * @throws BillionVerifyException
      */
     private function request(string $method, string $path, ?array $body = null, int $attempt = 1): ?array
     {
@@ -79,7 +79,7 @@ class Client
         } catch (RequestException $e) {
             $response = $e->getResponse();
             if ($response === null) {
-                throw new EmailVerifyException('Network error: ' . $e->getMessage(), 'NETWORK_ERROR', 0);
+                throw new BillionVerifyException('Network error: ' . $e->getMessage(), 'NETWORK_ERROR', 0);
             }
 
             $statusCode = $response->getStatusCode();
@@ -95,7 +95,7 @@ class Client
     }
 
     /**
-     * @throws EmailVerifyException
+     * @throws BillionVerifyException
      */
     private function handleErrorResponse(
         int $statusCode,
@@ -116,7 +116,7 @@ class Client
                 throw new InsufficientCreditsException($message);
 
             case 403:
-                throw new EmailVerifyException($message, $code, 403);
+                throw new BillionVerifyException($message, $code, 403);
 
             case 404:
                 throw new NotFoundException($message);
@@ -140,17 +140,17 @@ class Client
                     sleep((int) pow(2, $attempt));
                     return $this->request($method, $path, $body, $attempt + 1);
                 }
-                throw new EmailVerifyException($message, $code, $statusCode);
+                throw new BillionVerifyException($message, $code, $statusCode);
 
             default:
-                throw new EmailVerifyException($message, $code, $statusCode, $details);
+                throw new BillionVerifyException($message, $code, $statusCode, $details);
         }
     }
 
     /**
      * Make a multipart/form-data request for file uploads.
      *
-     * @throws EmailVerifyException
+     * @throws BillionVerifyException
      */
     private function multipartRequest(string $path, array $multipart, int $attempt = 1): array
     {
@@ -170,7 +170,7 @@ class Client
         } catch (RequestException $e) {
             $response = $e->getResponse();
             if ($response === null) {
-                throw new EmailVerifyException('Network error: ' . $e->getMessage(), 'NETWORK_ERROR', 0);
+                throw new BillionVerifyException('Network error: ' . $e->getMessage(), 'NETWORK_ERROR', 0);
             }
 
             $statusCode = $response->getStatusCode();
@@ -191,7 +191,7 @@ class Client
      * @param string $email The email address to verify
      * @param bool $checkSmtp Whether to perform SMTP verification
      * @return array Verification result
-     * @throws EmailVerifyException
+     * @throws BillionVerifyException
      */
     public function verify(string $email, bool $checkSmtp = true): array
     {
@@ -209,7 +209,7 @@ class Client
      * @param array $emails Array of email addresses (max 50)
      * @param bool $checkSmtp Whether to perform SMTP verification
      * @return array Batch verification results
-     * @throws EmailVerifyException
+     * @throws BillionVerifyException
      */
     public function verifyBatch(array $emails, bool $checkSmtp = true): array
     {
@@ -236,7 +236,7 @@ class Client
      * @param string|null $emailColumn Column name containing email addresses (auto-detected if null)
      * @param bool $preserveOriginal Keep original columns in result file
      * @return array Upload response with task_id and status
-     * @throws EmailVerifyException
+     * @throws BillionVerifyException
      */
     public function uploadFile(
         string $filePath,
@@ -280,7 +280,7 @@ class Client
      * @param string $jobId The job ID returned from file upload
      * @param int $timeout Long-polling timeout in seconds (0-300). If set, waits until job completes or timeout.
      * @return array Job status
-     * @throws EmailVerifyException
+     * @throws BillionVerifyException
      */
     public function getFileJobStatus(string $jobId, int $timeout = 0): array
     {
@@ -309,7 +309,7 @@ class Client
      * @param bool|null $disposable Include disposable emails
      * @param bool|null $risky Include risky emails
      * @return string CSV content or redirect URL
-     * @throws EmailVerifyException
+     * @throws BillionVerifyException
      */
     public function getFileJobResults(
         string $jobId,
@@ -356,7 +356,7 @@ class Client
         } catch (RequestException $e) {
             $response = $e->getResponse();
             if ($response === null) {
-                throw new EmailVerifyException('Network error: ' . $e->getMessage(), 'NETWORK_ERROR', 0);
+                throw new BillionVerifyException('Network error: ' . $e->getMessage(), 'NETWORK_ERROR', 0);
             }
 
             $statusCode = $response->getStatusCode();
@@ -368,7 +368,7 @@ class Client
             match ($statusCode) {
                 401 => throw new AuthenticationException($message),
                 404 => throw new NotFoundException($message),
-                default => throw new EmailVerifyException($message, $error['code'] ?? 'UNKNOWN_ERROR', $statusCode),
+                default => throw new BillionVerifyException($message, $error['code'] ?? 'UNKNOWN_ERROR', $statusCode),
             };
         }
     }
@@ -380,7 +380,7 @@ class Client
      * @param int $pollInterval Time between polls in seconds (default: 5)
      * @param int $maxWait Maximum wait time in seconds (default: 600)
      * @return array Final job status
-     * @throws EmailVerifyException
+     * @throws BillionVerifyException
      */
     public function waitForFileJobCompletion(string $jobId, int $pollInterval = 5, int $maxWait = 600): array
     {
@@ -404,7 +404,7 @@ class Client
      * Get current credit balance.
      *
      * @return array Credits information
-     * @throws EmailVerifyException
+     * @throws BillionVerifyException
      */
     public function getCredits(): array
     {
@@ -419,7 +419,7 @@ class Client
      * @param string $url The HTTPS webhook URL
      * @param array $events List of events to subscribe to ('file.completed', 'file.failed')
      * @return array Webhook configuration including the secret
-     * @throws EmailVerifyException
+     * @throws BillionVerifyException
      */
     public function createWebhook(string $url, array $events): array
     {
@@ -435,7 +435,7 @@ class Client
      * List all webhooks.
      *
      * @return array List of webhooks
-     * @throws EmailVerifyException
+     * @throws BillionVerifyException
      */
     public function listWebhooks(): array
     {
@@ -446,7 +446,7 @@ class Client
      * Delete a webhook.
      *
      * @param string $webhookId The webhook ID to delete
-     * @throws EmailVerifyException
+     * @throws BillionVerifyException
      */
     public function deleteWebhook(string $webhookId): void
     {
@@ -475,7 +475,7 @@ class Client
      */
     public static function healthCheck(?string $baseUrl = null): array
     {
-        $url = rtrim($baseUrl ?? 'https://api.emailverify.ai', '/') . '/health';
+        $url = rtrim($baseUrl ?? 'https://api.billionverify.com', '/') . '/health';
 
         $client = new HttpClient([
             'timeout' => 10,
