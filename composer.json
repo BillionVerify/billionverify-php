@@ -18,7 +18,7 @@
     ],
     "homepage": "https://billionverify.com",
     "support": {
-        "source": "https://github.com/BillionVerify/php-sdk"
+        "source": "https://github.com/BillionVerify/billionverify-php"
     },
     "require": {
         "php": ">=8.1",
