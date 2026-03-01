@@ -1,5 +1,5 @@
 {
-    "name": "billionverify/php-sdk",
+    "name": "billionverify/billionverify-php",
     "description": "Official BillionVerify PHP SDK for email verification",
     "type": "library",
     "license": "MIT",

@@ -12,7 +12,7 @@ Official BillionVerify PHP SDK for email verification.
 ## Installation
 
 ```bash
-composer require billionverify/php-sdk
+composer require billionverify/billionverify-php
 ```
 
 ## Quick Start
